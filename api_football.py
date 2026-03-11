@@ -244,6 +244,113 @@ class APIFootball:
             "draws": draws
         }
 
+    async def get_all_fixtures_with_odds(self, fixtures: List[Dict], max_fixtures: int = 15) -> List[Dict]:
+        """Obține TOATE meciurile cu cote (fără filtrare)"""
+        results = []
+
+        for fixture in fixtures[:max_fixtures]:
+            fixture_id = fixture["fixture"]["id"]
+            odds_data = await self._make_request("odds", {
+                "fixture": fixture_id,
+                "bookmaker": 8
+            })
+
+            if odds_data.get("rate_limited"):
+                break
+
+            if "response" in odds_data and len(odds_data["response"]) > 0:
+                try:
+                    odds = odds_data["response"][0]
+                    bets = odds.get("bookmakers", [{}])[0].get("bets", [{}])[0].get("values", [])
+
+                    home_odd = float(bets[0].get("odd", 0)) if len(bets) > 0 else 0
+                    draw_odd = float(bets[1].get("odd", 0)) if len(bets) > 1 else 0
+                    away_odd = float(bets[2].get("odd", 0)) if len(bets) > 2 else 0
+
+                    # Verifică dacă are cote țintă
+                    has_target = any(
+                        MIN_ODD <= odd <= MAX_ODD
+                        for odd in [home_odd, draw_odd, away_odd]
+                    )
+
+                    fixture["odds"] = {
+                        "home": home_odd,
+                        "draw": draw_odd,
+                        "away": away_odd,
+                        "has_target": has_target
+                    }
+                    results.append(fixture)
+                except (IndexError, KeyError, ValueError):
+                    results.append(fixture)  # Adaugă și fără cote
+
+            await asyncio.sleep(1)
+
+        return results
+
+    def format_fixture_simple(self, fixture: Dict) -> str:
+        """Formatează meci simplu (fără cote)"""
+        home = fixture["teams"]["home"]["name"]
+        away = fixture["teams"]["away"]["name"]
+        league = fixture["league"]["name"]
+
+        match_time = datetime.fromtimestamp(fixture["fixture"]["timestamp"])
+        time_str = match_time.strftime("%H:%M")
+
+        status = fixture["fixture"]["status"]["short"]
+
+        if status == "NS":
+            score = f"⏰ {time_str}"
+        elif status in ["1H", "2H", "HT", "ET", "P", "LIVE"]:
+            elapsed = fixture["fixture"]["status"]["elapsed"] or 0
+            goals_home = fixture["goals"]["home"] or 0
+            goals_away = fixture["goals"]["away"] or 0
+            score = f"🔴 {elapsed}' | {goals_home}-{goals_away}"
+        else:
+            score = f"📊 {status}"
+
+        return f"⚽ *{home}* vs *{away}*\n🏆 {league} | {score}"
+
+    def format_fixture_with_highlight(self, fixture: Dict) -> str:
+        """Formatează meci cu evidențiere cote țintă"""
+        home = fixture["teams"]["home"]["name"]
+        away = fixture["teams"]["away"]["name"]
+        league = fixture["league"]["name"]
+
+        match_time = datetime.fromtimestamp(fixture["fixture"]["timestamp"])
+        time_str = match_time.strftime("%H:%M")
+
+        status = fixture["fixture"]["status"]["short"]
+
+        if status == "NS":
+            score = f"⏰ {time_str}"
+        elif status in ["1H", "2H", "HT", "ET", "P", "LIVE"]:
+            elapsed = fixture["fixture"]["status"]["elapsed"] or 0
+            goals_home = fixture["goals"]["home"] or 0
+            goals_away = fixture["goals"]["away"] or 0
+            score = f"🔴 {elapsed}' | {goals_home}-{goals_away}"
+        else:
+            score = f"📊 {status}"
+
+        odds_str = ""
+        target_marker = ""
+        if "odds" in fixture:
+            odds = fixture["odds"]
+            odds_str = f"\n💰 1={odds['home']:.2f} | X={odds['draw']:.2f} | 2={odds['away']:.2f}"
+
+            # Marchează cotele în interval
+            targets = []
+            if MIN_ODD <= odds['home'] <= MAX_ODD:
+                targets.append(f"1={odds['home']:.2f}")
+            if MIN_ODD <= odds['draw'] <= MAX_ODD:
+                targets.append(f"X={odds['draw']:.2f}")
+            if MIN_ODD <= odds['away'] <= MAX_ODD:
+                targets.append(f"2={odds['away']:.2f}")
+
+            if targets:
+                target_marker = "\n✅ *COTĂ ȚINTĂ:* " + ", ".join(targets)
+
+        return f"⚽ *{home}* vs *{away}*\n🏆 {league} | {score}{odds_str}{target_marker}"
+
     def format_fixture(self, fixture: Dict, include_odds: bool = True) -> str:
         """Formatează meci pentru afișare"""
         home = fixture["teams"]["home"]["name"]
