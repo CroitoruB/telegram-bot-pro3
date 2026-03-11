@@ -15,16 +15,16 @@ API_FOOTBALL_BASE_URL = "https://v3.football.api-sports.io"
 
 # === SETĂRI PRO ===
 
-# Interval cote țintă
-MIN_ODD = 1.20
-MAX_ODD = 1.45
+# Interval cote - FĂRĂ LIMITĂ (afișează TOATE cotele)
+MIN_ODD = 1.01  # Cotă minimă posibilă
+MAX_ODD = 50.0  # Cotă maximă (practic nelimitat)
 
 # Bilet PRO - cotă totală țintă
-TICKET_MIN_TOTAL_ODD = 1.60
-TICKET_MAX_TOTAL_ODD = 1.80
+TICKET_MIN_TOTAL_ODD = 1.50
+TICKET_MAX_TOTAL_ODD = 5.00
 
 # Limită meciuri pe zi
-MAX_MATCHES_PER_DAY = 3
+MAX_MATCHES_PER_DAY = 10
 
 # Timp notificare înainte de meci (minute)
 NOTIFICATION_MINUTES_BEFORE = 30
